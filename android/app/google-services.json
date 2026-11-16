@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "989016215781",
+    "project_id": "codexcatalouge-71307",
+    "storage_bucket": "codexcatalouge-71307.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:989016215781:android:4ba31037e3a71bd2a1c40c",
+        "android_client_info": {
+          "package_name": "com.example.codex_catalouge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPlKqTOPTE49PODmpw1BQ0J3iHn1eR52k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

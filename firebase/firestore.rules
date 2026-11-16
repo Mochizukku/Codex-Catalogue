@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && userDoc().role in roles;
+    }
+
+    function isAdmin() {
+      return hasRole(['ADMIN']);
+    }
+
+    function isCouncil() {
+      return hasRole(['MODERATOR', 'ADMIN']);
+    }
+
+    function isAuthorOrAbove() {
+      return hasRole(['AUTHOR', 'MODERATOR', 'ADMIN']);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isCouncil());
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'READER';
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId
+          && request.resource.data.role == resource.data.role)
+      );
+    }
+
+    // Lore configuration
+    match /lore_config/{docId} {
+      allow read: if true;
+      allow write: if isCouncil();
+    }
+
+    // Admin-only GitHub credentials
+    match /admin_secrets/{docId} {
+      allow read: if isCouncil();
+      allow write: if isAdmin();
+    }
+
+    // Artifacts catalog
+    match /artifacts/{artifactId} {
+      // Guests can read approved public/flagged metadata for Archive preview;
+      // Authors can read their own drafts/pending; Council can read all.
+      allow read: if resource.data.status == 'APPROVED'
+        || (isSignedIn() && resource.data.authorId == request.auth.uid)
+        || isCouncil();
+
+      // Any signed-in member (testing Wisdom or Author+) can submit a DRAFT or PENDING entry
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.status in ['DRAFT', 'PENDING']
+        && request.resource.data.isOfficialCanon == false
+        && request.resource.data.upvotes == 0
+        && request.resource.data.downvotes == 0;
+
+      allow update: if isSignedIn() && (
+        // Council full moderation privileges
+        isCouncil() ||
+        // Author updating their own unapproved or flagged entry
+        (resource.data.authorId == request.auth.uid
+          && resource.data.status in ['DRAFT', 'PENDING', 'REJECTED']
+          && request.resource.data.status in ['DRAFT', 'PENDING']
+          && request.resource.data.isOfficialCanon == resource.data.isOfficialCanon) ||
+        (resource.data.authorId == request.auth.uid
+          && resource.data.visibility == 'FLAGGED'
+          && request.resource.data.status == 'PENDING') ||
+        // Authenticated readers updating vote counters & auto-flag visibility only
+        (resource.data.status == 'APPROVED'
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['upvotes', 'downvotes', 'rating', 'visibility', 'updatedAt']))
+      );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.authorId == request.auth.uid && resource.data.status == 'DRAFT');
+
+      // Per-user vote records
+      match /votes/{voterId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && request.auth.uid == voterId;
+      }
+    }
+  }
+}
