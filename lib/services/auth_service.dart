@@ -38,25 +38,84 @@ class AuthService {
     required String password,
     required String displayName,
   }) async {
+    final trimmedEmail = email.trim();
+    final trimmedName = displayName.trim();
     final cred = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
+      email: trimmedEmail,
       password: password,
     );
-    final user = cred.user!;
-    await user.updateDisplayName(displayName.trim());
-    final appUser = AppUser(
+    final user = cred.user;
+    if (user == null) {
+      throw StateError('Registration did not return a Firebase user.');
+    }
+
+    // Roll back the Auth user if writing the Firestore profile fails so retries
+    // do not get stuck behind email-already-in-use without a users/{uid} doc.
+    try {
+      await Future.wait([
+        user.updateDisplayName(trimmedName),
+        _firestore.collection('users').doc(user.uid).set({
+          'displayName': trimmedName,
+          'email': trimmedEmail,
+          'role': UserRole.reader.firestoreValue,
+          'inUniverseRole': UserRole.reader.defaultInUniverseTitle,
+          'vanguardBranch': null,
+          'truthPoints': 0,
+          'bookmarkedArtifactIds': const <String>[],
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+      ]);
+    } catch (_) {
+      try {
+        await user.delete();
+      } catch (_) {
+        try {
+          await _auth.signOut();
+        } catch (_) {}
+      }
+      rethrow;
+    }
+
+    return AppUser(
       uid: user.uid,
-      displayName: displayName.trim(),
-      email: email.trim(),
+      displayName: trimmedName,
+      email: trimmedEmail,
       role: UserRole.reader,
-      inUniverseRole: 'The Seeker',
+      inUniverseRole: UserRole.reader.defaultInUniverseTitle,
       createdAt: DateTime.now(),
     );
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .set(appUser.toMap(), SetOptions(merge: true));
-    return appUser;
+  }
+
+  /// Maps Firebase exceptions into concise user-facing error messages.
+  static String formatAuthError(Object error) {
+    if (error is FirebaseAuthException) {
+      return switch (error.code) {
+        'email-already-in-use' =>
+          'An account with this email already exists. Try signing in instead.',
+        'invalid-email' => 'Enter a valid email address.',
+        'weak-password' =>
+          'Password is too weak. Use at least 6 characters.',
+        'operation-not-allowed' =>
+          'Email/Password sign-up is not enabled in Firebase.',
+        'network-request-failed' =>
+          'Network error. Check your connection and try again.',
+        'user-not-found' ||
+        'wrong-password' ||
+        'invalid-credential' =>
+          'Invalid email or password.',
+        'too-many-requests' =>
+          'Too many attempts. Please wait a moment and try again.',
+        'user-disabled' => 'This account has been disabled.',
+        _ => error.message ?? 'Authentication failed (${error.code}).',
+      };
+    }
+    if (error is FirebaseException) {
+      if (error.code == 'no-app') {
+        return 'Firebase is not configured yet. Follow SETUP.md to link your project.';
+      }
+      return error.message ?? 'Firebase error (${error.code}).';
+    }
+    return error.toString().replaceFirst('Exception: ', '');
   }
 
   Future<void> signIn({
