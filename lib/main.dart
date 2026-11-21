@@ -9,13 +9,16 @@ import 'features/landing/landing_screen.dart';
 import 'features/sanctum/sanctum_screen.dart';
 import 'features/transcribe/transcribe_screen.dart';
 import 'features/vault/vault_screen.dart';
+import 'firebase_options.dart';
 import 'providers/codex_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   var firebaseReady = false;
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     firebaseReady = true;
   } catch (_) {
     // Firebase not configured yet; follow SETUP.md to link your project.
