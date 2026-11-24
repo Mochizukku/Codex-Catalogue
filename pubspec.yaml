@@ -64,6 +64,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/codex_logo.png
+    - assets/images/codexlogo.png
+    - assets/images/the_mark_of_codex_catalogue.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
