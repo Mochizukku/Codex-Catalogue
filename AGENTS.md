@@ -100,3 +100,15 @@ Routing: [e.g., GoRouter / AutoRoute]
 Data Models: [e.g., Freezed + json_serializable / Dart Mappable]
 
 Directory Structure: Feature-first (lib/features/<feature>/{data,domain,presentation})
+
+7. Git & Conventional Commits
+
+Every change must be committed using Conventional Commits (`<type>: <description>` or `<type>(<scope>): <description>`):
+
+- `feat`: A new feature or UI enhancement
+- `fix`: A bug fix
+- `docs`: Documentation or instruction updates (e.g., `AGENTS.md`, `README.md`)
+- `refactor`: Code restructuring without behavior change
+- `style`: Formatting or visual styling tweaks
+- `test`: Adding or updating tests
+- `chore`: Build, dependency, or tooling maintenance
