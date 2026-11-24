@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../core/theme/codex_theme.dart';
 import '../../core/theme/codex_tokens.dart';
 import '../../providers/codex_providers.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/codex_components.dart';
 import '../../widgets/floating_runes_overlay.dart';
 import '../landing/arcane_backdrop.dart';
@@ -22,11 +22,16 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
+  static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
   late final LandingAtmosphereController _atmosphere;
   late bool _isSignUp = widget.initialSignUp;
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _confirmPassCtrl = TextEditingController();
+  bool _obscurePass = true;
+  bool _obscureConfirmPass = true;
   String? _error;
   bool _busy = false;
 
@@ -49,24 +54,38 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final isSignUp = _isSignUp;
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;
+    final confirmPass = _confirmPassCtrl.text;
     final name = _nameCtrl.text.trim();
 
-    if (_isSignUp && name.isEmpty) {
-      setState(() => _error = 'Enter your Seeker / Scribe title.');
+    if (isSignUp && name.isEmpty) {
+      setState(() => _error = 'Enter your Seeker title.');
       return;
     }
-    if (email.isEmpty || !email.contains('@')) {
+    if (!_emailRegex.hasMatch(email)) {
       setState(() => _error = 'Enter a valid email address.');
       return;
     }
     if (pass.length < 6) {
       setState(() => _error = 'Password must be at least 6 characters.');
+      return;
+    }
+    if (isSignUp && confirmPass != pass) {
+      setState(() => _error = 'Passwords do not match.');
+      return;
+    }
+    if (!ref.read(firebaseReadyProvider)) {
+      setState(
+        () => _error =
+            'Firebase is not configured yet. Follow SETUP.md to link your project.',
+      );
       return;
     }
 
@@ -77,11 +96,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     try {
       final auth = ref.read(authServiceProvider);
-      if (_isSignUp) {
+      if (isSignUp) {
         await auth.signUp(email: email, password: pass, displayName: name);
         await auth.signOut();
         if (!mounted) return;
-        showCodexToast(context, 'The Mark of Codex granted — Sign in to enter');
+        showCodexToast(context, 'The Mark of Codex granted');
         showTheMarkRitualTransition(
           context,
           onSwitchToSignIn: () {
@@ -89,6 +108,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             setState(() {
               _isSignUp = false;
               _passCtrl.clear();
+              _confirmPassCtrl.clear();
               _error = null;
               _busy = false;
             });
@@ -111,20 +131,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           },
         );
       }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message ?? 'Authentication failed (${e.code}).';
-        _busy = false;
-      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = AuthService.formatAuthError(e);
         _busy = false;
       });
     }
   }
+
+  Widget _visibilityToggle({
+    required bool obscured,
+    required Color iconColor,
+    required VoidCallback onPressed,
+  }) => IconButton(
+    tooltip: obscured ? 'Show password' : 'Hide password',
+    icon: Icon(
+      obscured ? Icons.visibility_off : Icons.visibility,
+      size: 18,
+      color: iconColor,
+    ),
+    onPressed: onPressed,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +251,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                                     CrossAxisAlignment.stretch,
                                                 children: [
                                                   Text(
-                                                    'Seeker / Scribe Name',
+                                                    'Seeker',
                                                     style: CodexTypography.chip(
                                                       p.textMuted,
                                                     ),
@@ -232,6 +260,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                                   TextField(
                                                     controller: _nameCtrl,
                                                     enabled: !_busy,
+                                                    textInputAction:
+                                                        TextInputAction.next,
                                                     style: CodexTypography.body(
                                                       p.textPrimary,
                                                     ),
@@ -258,6 +288,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                         enabled: !_busy,
                                         keyboardType:
                                             TextInputType.emailAddress,
+                                        textInputAction: TextInputAction.next,
                                         style: CodexTypography.body(
                                           p.textPrimary,
                                         ),
@@ -267,7 +298,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                       ),
                                       const SizedBox(height: 14),
                                       Text(
-                                        'Secret Cipher (Password)',
+                                        'Password',
                                         style: CodexTypography.chip(
                                           p.textMuted,
                                         ),
@@ -276,14 +307,61 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                       TextField(
                                         controller: _passCtrl,
                                         enabled: !_busy,
-                                        obscureText: true,
+                                        obscureText: _obscurePass,
+                                        textInputAction: _isSignUp
+                                            ? TextInputAction.next
+                                            : TextInputAction.done,
+                                        onSubmitted: _isSignUp || _busy
+                                            ? null
+                                            : (_) => _submit(),
                                         style: CodexTypography.body(
                                           p.textPrimary,
                                         ),
-                                        decoration: const InputDecoration(
+                                        decoration: InputDecoration(
                                           hintText: '••••••••',
+                                          suffixIcon: _visibilityToggle(
+                                            obscured: _obscurePass,
+                                            iconColor: p.textMuted,
+                                            onPressed: () => setState(
+                                              () =>
+                                                  _obscurePass = !_obscurePass,
+                                            ),
+                                          ),
                                         ),
                                       ),
+                                      if (_isSignUp) ...[
+                                        const SizedBox(height: 14),
+                                        Text(
+                                          'Confirm Password',
+                                          style: CodexTypography.chip(
+                                            p.textMuted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        TextField(
+                                          controller: _confirmPassCtrl,
+                                          enabled: !_busy,
+                                          obscureText: _obscureConfirmPass,
+                                          textInputAction: TextInputAction.done,
+                                          onSubmitted: _busy
+                                              ? null
+                                              : (_) => _submit(),
+                                          style: CodexTypography.body(
+                                            p.textPrimary,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: '••••••••',
+                                            suffixIcon: _visibilityToggle(
+                                              obscured: _obscureConfirmPass,
+                                              iconColor: p.textMuted,
+                                              onPressed: () => setState(
+                                                () => _obscureConfirmPass =
+                                                    !_obscureConfirmPass,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                       if (_error != null) ...[
                                         const SizedBox(height: 10),
                                         Text(

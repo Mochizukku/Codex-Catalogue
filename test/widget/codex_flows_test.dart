@@ -13,36 +13,61 @@ import 'package:codex_catalouge/models/artifact.dart';
 import 'package:codex_catalouge/providers/codex_providers.dart';
 import 'package:codex_catalouge/services/auth_service.dart';
 import 'package:codex_catalouge/widgets/floating_runes_overlay.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeAuthService extends Fake implements AuthService {
+class _FakeAuthService implements AuthService {
+  _FakeAuthService({this.onSignUp});
+
+  final Future<AppUser> Function({
+    required String email,
+    required String password,
+    required String displayName,
+  })?
+  onSignUp;
+
   int signUpCalls = 0;
   int signInCalls = 0;
   int signOutCalls = 0;
+
+  @override
+  User? get currentFirebaseUser => null;
+
+  @override
+  Stream<User?> get authStateChanges => Stream.value(null);
+
+  @override
+  Stream<AppUser?> watchCurrentUser() => Stream.value(null);
 
   @override
   Future<AppUser> signUp({
     required String email,
     required String password,
     required String displayName,
-  }) async {
+  }) {
     signUpCalls++;
-    return AppUser(
-      uid: 'u_new',
-      displayName: displayName,
-      email: email,
-      createdAt: DateTime(2026),
+    if (onSignUp != null) {
+      return onSignUp!(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+    }
+    return Future.value(
+      AppUser(
+        uid: 'u_new',
+        displayName: displayName,
+        email: email,
+        createdAt: DateTime(2026),
+      ),
     );
   }
 
   @override
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     signInCalls++;
   }
 
@@ -337,7 +362,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            firebaseReadyProvider.overrideWith((ref) => false),
+            firebaseReadyProvider.overrideWith((ref) => true),
             authServiceProvider.overrideWithValue(fakeAuth),
           ],
           child: MaterialApp(
@@ -359,6 +384,7 @@ void main() {
       await tester.enterText(fields.at(0), 'Seer_Test');
       await tester.enterText(fields.at(1), 'seer@codex.org');
       await tester.enterText(fields.at(2), 'secret123');
+      await tester.enterText(fields.at(3), 'secret123');
 
       final signUpBtn = find.text('Sign Up & Behold ᛏᚱᚢᛏᚺ');
       await tester.ensureVisible(signUpBtn);
@@ -456,4 +482,159 @@ void main() {
       expect(container.read(globalThemeModeProvider), CodexThemeMode.light);
     },
   );
+
+  testWidgets('AuthScreen Sign Up validates inputs, confirm password, and firebaseReady', (
+    tester,
+  ) async {
+    var firebaseReady = false;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseReadyProvider.overrideWith((ref) => firebaseReady),
+          authServiceProvider.overrideWithValue(_FakeAuthService()),
+        ],
+        child: MaterialApp(
+          theme: CodexTheme.build(CodexThemeMode.dark),
+          home: const AuthScreen(initialSignUp: true),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final submitBtn = find.text('Sign Up & Behold ᛏᚱᚢᛏᚺ');
+
+    // Empty name
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(find.text('Enter your Seeker title.'), findsOneWidget);
+
+    // Invalid email
+    await tester.enterText(find.byType(TextField).at(0), 'Seer_One');
+    await tester.enterText(find.byType(TextField).at(1), 'bad-email');
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+
+    // Short password
+    await tester.enterText(find.byType(TextField).at(1), 'seer@codex.org');
+    await tester.enterText(find.byType(TextField).at(2), '123');
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(
+      find.text('Password must be at least 6 characters.'),
+      findsOneWidget,
+    );
+
+    // Mismatched confirm password
+    await tester.enterText(find.byType(TextField).at(2), 'secret12');
+    await tester.enterText(find.byType(TextField).at(3), 'different');
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(find.text('Passwords do not match.'), findsOneWidget);
+
+    // Firebase not ready
+    await tester.enterText(find.byType(TextField).at(3), 'secret12');
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(
+      find.text(
+        'Firebase is not configured yet. Follow SETUP.md to link your project.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('AuthScreen Sign Up succeeds and formats FirebaseAuthException', (
+    tester,
+  ) async {
+    String? capturedEmail;
+    String? capturedName;
+    var succeeded = false;
+    var shouldThrowDuplicate = false;
+
+    final fakeAuth = _FakeAuthService(
+      onSignUp: ({
+        required email,
+        required password,
+        required displayName,
+      }) async {
+        if (shouldThrowDuplicate) {
+          throw FirebaseAuthException(code: 'email-already-in-use');
+        }
+        capturedEmail = email;
+        capturedName = displayName;
+        return AppUser(
+          uid: 'u1',
+          displayName: displayName,
+          email: email,
+          createdAt: DateTime(2026),
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseReadyProvider.overrideWith((ref) => true),
+          authServiceProvider.overrideWithValue(fakeAuth),
+        ],
+        child: MaterialApp(
+          theme: CodexTheme.build(CodexThemeMode.dark),
+          home: AuthScreen(
+            initialSignUp: true,
+            onSuccess: () => succeeded = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).at(0), '  Seer_Manayon  ');
+    await tester.enterText(find.byType(TextField).at(1), '  seer@codex.org  ');
+    await tester.enterText(find.byType(TextField).at(2), 'secret12');
+    await tester.enterText(find.byType(TextField).at(3), 'secret12');
+
+    // Toggle password visibility
+    final showPassBtn = find.byTooltip('Show password').first;
+    await tester.ensureVisible(showPassBtn);
+    await tester.pump();
+    await tester.tap(showPassBtn);
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(2)).obscureText,
+      isFalse,
+    );
+
+    // Duplicate email error formatting
+    shouldThrowDuplicate = true;
+    final submitBtn = find.text('Sign Up & Behold ᛏᚱᚢᛏᚺ');
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(
+      find.text(
+        'An account with this email already exists. Try signing in instead.',
+      ),
+      findsOneWidget,
+    );
+    expect(succeeded, isFalse);
+
+    // Successful registration transitions to Sign In via crimson Mark ritual
+    shouldThrowDuplicate = false;
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(capturedName, 'Seer_Manayon');
+    expect(capturedEmail, 'seer@codex.org');
+    expect(find.text('The Mark of Codex granted'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('SANCTUM AUTHENTICATION'), findsOneWidget);
+    expect(succeeded, isFalse);
+  });
 }

@@ -57,7 +57,6 @@ class DefaultFirebaseOptions {
     projectId: 'codexcatalouge-71307',
     storageBucket: 'codexcatalouge-71307.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCuIw0aIaRvDwpoX1Bcxjwe-5YTXhvEMm4',
     appId: '1:989016215781:ios:df5d9494fa351935a1c40c',
@@ -66,7 +65,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'codexcatalouge-71307.firebasestorage.app',
     iosBundleId: 'com.example.codexCatalouge',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCuIw0aIaRvDwpoX1Bcxjwe-5YTXhvEMm4',
     appId: '1:989016215781:ios:df5d9494fa351935a1c40c',
