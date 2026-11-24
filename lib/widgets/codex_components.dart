@@ -26,7 +26,7 @@ void showCodexToast(BuildContext context, String message) {
     );
 }
 
-class CodexChip extends StatelessWidget {
+class CodexChip extends StatefulWidget {
   const CodexChip({
     super.key,
     required this.label,
@@ -41,44 +41,61 @@ class CodexChip extends StatelessWidget {
   final Color? dotColor;
 
   @override
+  State<CodexChip> createState() => _CodexChipState();
+}
+
+class _CodexChipState extends State<CodexChip> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final p = context.codex;
-    final bg = selected ? p.accent : p.surface;
-    final border = selected ? p.accent : p.border;
-    final fg = selected ? p.onAccent : p.textPrimary;
+    final bg = widget.selected
+        ? p.accent
+        : (_hovered ? p.pillSurface : p.surface.withValues(alpha: 0.85));
+    final border = widget.selected
+        ? p.accent
+        : (_hovered ? p.accent.withValues(alpha: 0.55) : p.border);
+    final fg = widget.selected ? p.onAccent : p.textPrimary;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (dotColor != null) ...[
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: dotColor,
-                  shape: BoxShape.circle,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.dotColor != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: widget.dotColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
+                const SizedBox(width: 6),
+              ],
+              Text(widget.label, style: CodexTypography.chip(fg)),
             ],
-            Text(label, style: CodexTypography.chip(fg)),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class CodexButton extends StatelessWidget {
+class CodexButton extends StatefulWidget {
   const CodexButton({
     super.key,
     required this.label,
@@ -95,42 +112,58 @@ class CodexButton extends StatelessWidget {
   final bool dangerOutline;
 
   @override
+  State<CodexButton> createState() => _CodexButtonState();
+}
+
+class _CodexButtonState extends State<CodexButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final p = context.codex;
-    final borderColor =
-        dangerOutline
-            ? p.danger
-            : mutedOutline
-            ? p.border
-            : p.accent;
-    final textColor =
-        filled
-            ? p.onAccent
-            : dangerOutline
-            ? p.danger
-            : mutedOutline
-            ? p.textMuted
-            : p.accent;
+    final borderColor = widget.dangerOutline
+        ? p.danger
+        : widget.mutedOutline
+        ? (_hovered ? p.accent.withValues(alpha: 0.65) : p.border)
+        : p.accent;
+    final textColor = widget.filled
+        ? p.onAccent
+        : widget.dangerOutline
+        ? p.danger
+        : widget.mutedOutline
+        ? (_hovered ? p.textPrimary : p.textMuted)
+        : p.accent;
+    final bgColor = widget.filled
+        ? (_hovered ? Color.lerp(p.accent, Colors.white, 0.10)! : p.accent)
+        : (_hovered ? borderColor.withValues(alpha: 0.10) : Colors.transparent);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(11),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: filled ? p.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor),
+    return MouseRegion(
+      cursor: widget.onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: double.infinity,
+          padding: const EdgeInsets.all(11),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: borderColor),
+          ),
+          child: Text(widget.label, style: CodexTypography.button(textColor)),
         ),
-        child: Text(label, style: CodexTypography.button(textColor)),
       ),
     );
   }
 }
 
-class CodexIconPillButton extends StatelessWidget {
+class CodexIconPillButton extends StatefulWidget {
   const CodexIconPillButton({
     super.key,
     required this.label,
@@ -143,28 +176,49 @@ class CodexIconPillButton extends StatelessWidget {
   final bool active;
 
   @override
+  State<CodexIconPillButton> createState() => _CodexIconPillButtonState();
+}
+
+class _CodexIconPillButtonState extends State<CodexIconPillButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final p = context.codex;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(
-          color: active ? p.accent : p.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: active ? p.accent : p.border),
-        ),
-        child: Text(
-          label,
-          style: CodexTypography.body(active ? p.onAccent : p.textPrimary),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.active
+                ? p.accent
+                : (_hovered ? p.pillSurface : p.surface.withValues(alpha: 0.86)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.active
+                  ? p.accent
+                  : (_hovered ? p.accent.withValues(alpha: 0.55) : p.border),
+            ),
+          ),
+          child: Text(
+            widget.label,
+            style: CodexTypography.body(
+              widget.active ? p.onAccent : p.textPrimary,
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class ArtifactCard extends StatelessWidget {
+class ArtifactCard extends StatefulWidget {
   const ArtifactCard({
     super.key,
     required this.artifact,
@@ -175,93 +229,171 @@ class ArtifactCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<ArtifactCard> createState() => _ArtifactCardState();
+}
+
+class _ArtifactCardState extends State<ArtifactCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final p = context.codex;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: p.border),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 4, color: artifact.anomalyClass.color),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 13, 13, 13),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        artifact.bracketedCode,
-                        style: CodexTypography.artifactId(p.accent),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        artifact.title,
-                        style: CodexTypography.cardTitle(p.textPrimary),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Text(
-                                  'Discovered in ${artifact.historicalOrigin}',
-                                  style: CodexTypography.metadata(p.textMuted),
-                                ),
-                                if (artifact.isOfficialCanon)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: p.pillSurface,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: p.accent),
-                                    ),
-                                    child: Text(
-                                      'Canon',
-                                      style: CodexTypography.badge(p.accent),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: p.pillSurface,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              artifact.signedRating,
-                              style: CodexTypography.chip(
-                                artifact.rating < 0 ? p.danger : p.textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
+    final art = widget.artifact;
+    final isDark = p.mode == CodexThemeMode.dark;
+    final classColor = art.anomalyClass.color;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                p.surface.withValues(alpha: isDark ? 0.86 : 0.94),
+                Color.lerp(
+                  p.surface,
+                  classColor,
+                  _hovered ? 0.11 : 0.05,
+                )!.withValues(alpha: isDark ? 0.88 : 0.94),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _hovered
+                  ? Color.lerp(p.border, classColor, 0.55)!
+                  : p.border,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: classColor.withValues(
+                  alpha: _hovered ? (isDark ? 0.18 : 0.10) : 0.06,
+                ),
+                blurRadius: _hovered ? 18 : 10,
+                spreadRadius: _hovered ? 0.5 : 0,
+              ),
+            ],
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: classColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: classColor.withValues(alpha: 0.55),
+                        blurRadius: 6,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                art.bracketedCode,
+                                style: CodexTypography.artifactId(p.accent),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: classColor.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: classColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Text(
+                                art.anomalyClass.label,
+                                style: CodexTypography.badge(classColor),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          art.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: CodexTypography.cardTitle(p.textPrimary),
+                        ),
+                        const Spacer(),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    'Discovered in ${art.historicalOrigin}',
+                                    style: CodexTypography.metadata(p.textMuted),
+                                  ),
+                                  if (art.isOfficialCanon)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: p.pillSurface,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: p.accent),
+                                      ),
+                                      child: Text(
+                                        'Canon',
+                                        style: CodexTypography.badge(p.accent),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: p.pillSurface,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                art.signedRating,
+                                style: CodexTypography.chip(
+                                  art.rating < 0 ? p.danger : p.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -339,64 +471,80 @@ Future<void> showTruthGateDialog(
             GestureDetector(
               onTap: () => Navigator.of(ctx).pop(),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-                child: Container(color: p.background.withValues(alpha: 0.82)),
+                filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                child: Container(color: p.background.withValues(alpha: 0.84)),
               ),
             ),
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(19),
-                  decoration: BoxDecoration(
-                    color: p.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: p.danger),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '⚠',
-                        style: TextStyle(fontSize: 26, color: p.accent),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Not Eligible to see the ᛏᚱᚢᛏᚺ',
-                        textAlign: TextAlign.center,
-                        style: CodexTypography.warningHeading(p.danger),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Uninitiated guests are barred from reading Clairvoyance memory transcripts. Sign up to receive The Mark of Codex Catalogue and unlock the archives.',
-                        textAlign: TextAlign.center,
-                        style: CodexTypography.body(p.textMuted),
-                      ),
-                      const SizedBox(height: 14),
-                      CodexButton(
-                        label: 'Sign up to receive The Mark',
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          onSignUp();
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      CodexButton(
-                        label: 'Sign in to existing account',
-                        filled: false,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          onSignIn();
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      CodexButton(
-                        label: 'Back to archive',
-                        filled: false,
-                        mutedOutline: true,
-                        onTap: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: p.surface.withValues(alpha: 0.96),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: p.danger.withValues(alpha: 0.85)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: p.danger.withValues(alpha: 0.24),
+                          blurRadius: 28,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/images/codexlogo.png',
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => Text(
+                            '⚠',
+                            style: TextStyle(fontSize: 28, color: p.accent),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Not Eligible to see the ᛏᚱᚢᛏᚺ',
+                          textAlign: TextAlign.center,
+                          style: CodexTypography.warningHeading(p.danger),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Uninitiated guests are barred from reading Clairvoyance memory transcripts. Sign up to receive The Mark of Codex Catalogue and unlock the archives.',
+                          textAlign: TextAlign.center,
+                          style: CodexTypography.body(p.textMuted),
+                        ),
+                        const SizedBox(height: 16),
+                        CodexButton(
+                          label: 'Sign up to receive The Mark',
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            onSignUp();
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        CodexButton(
+                          label: 'Sign in to existing account',
+                          filled: false,
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            onSignIn();
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        CodexButton(
+                          label: 'Back to archive',
+                          filled: false,
+                          mutedOutline: true,
+                          onTap: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

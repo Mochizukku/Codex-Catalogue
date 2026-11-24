@@ -7,6 +7,7 @@ import '../../core/theme/codex_theme.dart';
 import '../../core/theme/codex_tokens.dart';
 import '../../models/artifact.dart';
 import '../../providers/codex_providers.dart';
+import '../../widgets/codex_ambient_shell.dart';
 import '../../widgets/codex_components.dart';
 import '../transcribe/transcribe_screen.dart';
 
@@ -54,14 +55,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
           return Scaffold(
             backgroundColor: p.background,
-            body: SafeArea(
-              child: Stack(
-                children: [
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 86),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+            body: CodexAmbientBackground(
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 86),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 740),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -144,7 +149,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                         _VoteBar(artifact: art, userId: user?.uid),
                       ],
                     ),
-                  ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     left: 16,
                     right: 16,
@@ -189,6 +196,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ),
                 ],
               ),
+              ),
             ),
           );
         },
@@ -205,13 +213,9 @@ class _DossierHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.codex;
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: p.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: p.border),
-      ),
+    return CodexSectionCard(
+      padding: const EdgeInsets.all(15),
+      glowColor: artifact.anomalyClass.color,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

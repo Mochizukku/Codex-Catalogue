@@ -6,14 +6,22 @@ import '../../core/theme/codex_theme.dart';
 import '../../core/theme/codex_tokens.dart';
 import '../../models/artifact.dart';
 import '../../providers/codex_providers.dart';
+import '../../widgets/codex_ambient_shell.dart';
 import '../../widgets/codex_components.dart';
 import '../auth/auth_screen.dart';
 
-class TranscribeScreen extends ConsumerWidget {
+class TranscribeScreen extends ConsumerStatefulWidget {
   const TranscribeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TranscribeScreen> createState() => _TranscribeScreenState();
+}
+
+class _TranscribeScreenState extends ConsumerState<TranscribeScreen> {
+  ArtifactStatus? _statusFilter;
+
+  @override
+  Widget build(BuildContext context) {
     final p = context.codex;
     final user = ref.watch(currentUserProvider).valueOrNull;
     final submissionsAsync = ref.watch(authorSubmissionsProvider);
@@ -25,21 +33,43 @@ class TranscribeScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Transcribe',
-              style: CodexTypography.screenTitle(p.textPrimary),
+              'CLAIRVOYANCE STUDIO',
+              style: CodexTypography.screenTitle(
+                p.textPrimary,
+              ).copyWith(letterSpacing: 1.5),
+            ),
+            Text(
+              'Transcribe recovered artifact memories',
+              style: CodexTypography.metadata(p.textMuted),
             ),
             const Spacer(),
-            Text(
-              'Only initiated Scribes of The Clairvoyance may transcribe artifact memories.',
-              textAlign: TextAlign.center,
-              style: CodexTypography.body(p.textMuted),
-            ),
-            const SizedBox(height: 14),
-            CodexButton(
-              label: 'Sign Up / Sign In to Transcribe',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AuthScreen(initialSignUp: true),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: CodexSectionCard(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_note, size: 36, color: p.accent),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Only initiated Scribes of The Clairvoyance may transcribe artifact memories.',
+                        textAlign: TextAlign.center,
+                        style: CodexTypography.body(p.textMuted),
+                      ),
+                      const SizedBox(height: 16),
+                      CodexButton(
+                        label: 'Sign Up / Sign In to Transcribe',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AuthScreen(initialSignUp: true),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -55,11 +85,23 @@ class TranscribeScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Transcribe',
-                style: CodexTypography.screenTitle(p.textPrimary),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CLAIRVOYANCE STUDIO',
+                      style: CodexTypography.screenTitle(
+                        p.textPrimary,
+                      ).copyWith(letterSpacing: 1.5),
+                    ),
+                    Text(
+                      'Your memory transcriptions & drafts',
+                      style: CodexTypography.metadata(p.textMuted),
+                    ),
+                  ],
+                ),
               ),
               CodexIconPillButton(
                 label: '＋ New',
@@ -70,83 +112,137 @@ class TranscribeScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                CodexChip(
+                  label: 'All',
+                  selected: _statusFilter == null,
+                  onTap: () => setState(() => _statusFilter = null),
+                ),
+                const SizedBox(width: 6),
+                for (final s in ArtifactStatus.values) ...[
+                  CodexChip(
+                    label: s.displayLabel,
+                    selected: _statusFilter == s,
+                    onTap: () => setState(
+                      () => _statusFilter = _statusFilter == s ? null : s,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 14),
           Expanded(
             child: switch (submissionsAsync) {
-              AsyncData(:final value) when value.isEmpty => Center(
-                child: Text(
-                  'No transcriptions submitted yet. Tap ＋ New to open the Clairvoyance Studio.',
-                  textAlign: TextAlign.center,
-                  style: CodexTypography.body(p.textMuted),
-                ),
-              ),
-              AsyncData(:final value) => ListView.separated(
-                padding: const EdgeInsets.only(bottom: 20),
-                itemCount: value.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (ctx, i) {
-                  final item = value[i];
-                  final canEdit =
-                      item.status != ArtifactStatus.approved || item.isFlagged;
-                  return Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      color: p.surface,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: p.border),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: CodexTypography.button(p.textPrimary),
+              AsyncData(:final value) => Builder(
+                builder: (context) {
+                  final filtered = _statusFilter == null
+                      ? value
+                      : value
+                            .where((a) => a.status == _statusFilter)
+                            .toList();
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: CodexSectionCard(
+                          padding: const EdgeInsets.all(22),
+                          child: Text(
+                            value.isEmpty
+                                ? 'No transcriptions submitted yet. Tap ＋ New to open the Clairvoyance Studio.'
+                                : 'No transcriptions match this status filter.',
+                            textAlign: TextAlign.center,
+                            style: CodexTypography.body(p.textMuted),
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (ctx, i) {
+                      final item = filtered[i];
+                      final canEdit =
+                          item.status != ArtifactStatus.approved ||
+                          item.isFlagged;
+                      return CodexSectionCard(
+                        padding: const EdgeInsets.all(13),
+                        glowColor: item.anomalyClass.color,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: item.anomalyClass.color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    style: CodexTypography.cardTitle(
+                                      p.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: p.pillSurface,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    item.status.displayLabel,
+                                    style: CodexTypography.badge(
+                                      item.status == ArtifactStatus.approved
+                                          ? AnomalyClass.beneficial.color
+                                          : p.accent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
                             Text(
                               '${item.anomalyClass.label} · ${item.historicalOrigin}',
                               style: CodexTypography.metadata(p.textMuted),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: p.pillSurface,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                item.status.displayLabel,
-                                style: CodexTypography.badge(
-                                  item.status == ArtifactStatus.approved
-                                      ? AnomalyClass.beneficial.color
-                                      : p.accent,
+                            if (canEdit) ...[
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: CodexIconPillButton(
+                                  label: 'Edit',
+                                  onTap: () => Navigator.of(ctx).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => StudioWizardScreen(
+                                        initialArtifact: item,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
-                        if (canEdit) ...[
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: CodexIconPillButton(
-                              label: 'Edit',
-                              onTap: () => Navigator.of(ctx).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      StudioWizardScreen(initialArtifact: item),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -326,12 +422,16 @@ class _StudioWizardScreenState extends ConsumerState<StudioWizardScreen> {
 
     return Scaffold(
       backgroundColor: p.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: CodexAmbientBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -545,6 +645,9 @@ class _StudioWizardScreenState extends ConsumerState<StudioWizardScreen> {
                 onTap: _saveDraft,
               ),
             ],
+          ),
+              ),
+            ),
           ),
         ),
       ),

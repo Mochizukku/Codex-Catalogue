@@ -1,9 +1,10 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../core/theme/codex_theme.dart';
 import '../../core/theme/codex_tokens.dart';
 import '../../providers/codex_providers.dart';
 import '../../services/github_image_service.dart';
+import '../../widgets/codex_ambient_shell.dart';
 import '../../widgets/codex_components.dart';
 import '../auth/auth_screen.dart';
 import '../council/council_screen.dart';
@@ -61,28 +62,90 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
     final p = context.codex;
     final user = ref.watch(currentUserProvider).valueOrNull;
     final themeMode = ref.watch(globalThemeModeProvider);
-    final isLight = themeMode == CodexThemeMode.light;
 
     if (user != null && user.role.isCouncil) {
       _loadGithubConfig();
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Sanctum', style: CodexTypography.screenTitle(p.textPrimary)),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: p.border),
-            ),
+          Text(
+            'SANCTUM',
+            style: CodexTypography.screenTitle(
+              p.textPrimary,
+            ).copyWith(letterSpacing: 1.5),
+          ),
+          Text(
+            'Seeker dossier, theme & council access',
+            style: CodexTypography.metadata(p.textMuted),
+          ),
+          const SizedBox(height: 16),
+          CodexSectionCard(
+            padding: const EdgeInsets.all(16),
+            glowColor: user != null ? p.accent : AnomalyClass.cursed.color,
             child: Column(
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: p.pillSurface,
+                        border: Border.all(
+                          color: p.accent.withValues(alpha: 0.55),
+                        ),
+                      ),
+                      child: Image.asset(
+                        'assets/images/codexlogo.png',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            Icon(Icons.auto_stories, size: 28, color: p.accent),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.displayName ?? 'Uninitiated Guest',
+                            style: CodexTypography.dossierTitle(p.textPrimary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            user?.inUniverseRole ?? 'Guest Seeker',
+                            style: CodexTypography.chip(p.accent),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (user != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: p.pillSurface,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: p.border),
+                        ),
+                        child: Text(
+                          '✦ ${user.truthPoints} TP',
+                          style: CodexTypography.chip(p.accent),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(color: p.border, height: 1),
+                const SizedBox(height: 10),
                 _InfoRow(
                   label: 'Account',
                   value: user?.displayName ?? 'Uninitiated Guest',
@@ -96,35 +159,49 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
                   const SizedBox(height: 6),
                   _InfoRow(
                     label: 'Rank / TP',
-                    value: 'Level ${user.hierarchyLevel} · ${user.truthPoints} TP',
+                    value:
+                        'Level ${user.hierarchyLevel} · ${user.truthPoints} TP',
                   ),
                 ],
               ],
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: p.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          CodexSectionCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Light theme',
-                  style: CodexTypography.body(p.textPrimary),
+                  'Archive Appearance',
+                  style: CodexTypography.button(p.textPrimary),
                 ),
-                Switch.adaptive(
-                  value: isLight,
-                  activeThumbColor: p.accent,
-                  onChanged: (v) {
-                    ref.read(globalThemeModeProvider.notifier).state =
-                        v ? CodexThemeMode.light : CodexThemeMode.dark;
-                    ref.read(readerThemeOverrideProvider.notifier).state = null;
-                  },
+                const SizedBox(height: 4),
+                Text(
+                  'Switch between Dark obsidian, Light manuscript, or Papyrus scroll.',
+                  style: CodexTypography.metadata(p.textMuted),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final entry in const [
+                      (mode: CodexThemeMode.dark, label: 'Dark'),
+                      (mode: CodexThemeMode.light, label: 'Light'),
+                      (mode: CodexThemeMode.papyrus, label: 'Papyrus'),
+                    ])
+                      CodexChip(
+                        label: entry.label,
+                        selected: themeMode == entry.mode,
+                        onTap: () {
+                          ref.read(globalThemeModeProvider.notifier).state =
+                              entry.mode;
+                          ref.read(readerThemeOverrideProvider.notifier).state =
+                              null;
+                        },
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -138,13 +215,8 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: p.border),
-              ),
+            CodexSectionCard(
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -152,7 +224,7 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
                     'GitHub Relic Repository Config',
                     style: CodexTypography.button(p.accent),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _ownerCtrl,
                     style: CodexTypography.body(p.textPrimary),
@@ -162,7 +234,9 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
                   TextField(
                     controller: _repoCtrl,
                     style: CodexTypography.body(p.textPrimary),
-                    decoration: const InputDecoration(hintText: 'Repository Name'),
+                    decoration: const InputDecoration(
+                      hintText: 'Repository Name',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -190,9 +264,12 @@ class _SanctumScreenState extends ConsumerState<SanctumScreen> {
             ),
             const SizedBox(height: 14),
           ] else ...[
-            Text(
-              "The Puppeteer's Council button appears for admins and moderators only.",
-              style: CodexTypography.metadata(p.textMuted),
+            CodexSectionCard(
+              padding: const EdgeInsets.all(13),
+              child: Text(
+                "The Puppeteer's Council button appears for admins and moderators only.",
+                style: CodexTypography.metadata(p.textMuted),
+              ),
             ),
             const SizedBox(height: 14),
           ],

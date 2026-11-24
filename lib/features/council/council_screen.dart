@@ -5,6 +5,7 @@ import '../../core/theme/codex_theme.dart';
 import '../../core/theme/codex_tokens.dart';
 import '../../models/artifact.dart';
 import '../../providers/codex_providers.dart';
+import '../../widgets/codex_ambient_shell.dart';
 import '../../widgets/codex_components.dart';
 
 class CouncilScreen extends ConsumerStatefulWidget {
@@ -106,25 +107,42 @@ class _CouncilScreenState extends ConsumerState<CouncilScreen> {
 
     return Scaffold(
       backgroundColor: p.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  CodexIconPillButton(
-                    label: '‹ Sanctum',
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Council',
-                    style: CodexTypography.screenTitle(p.textPrimary),
-                  ),
-                ],
-              ),
+      body: CodexAmbientBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 780),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        CodexIconPillButton(
+                          label: '‹ Sanctum',
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "PUPPETEER'S COUNCIL",
+                                style: CodexTypography.screenTitle(
+                                  p.textPrimary,
+                                ).copyWith(letterSpacing: 1.4),
+                              ),
+                              Text(
+                                'Review & canonize Clairvoyance submissions',
+                                style: CodexTypography.metadata(p.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -162,16 +180,11 @@ class _CouncilScreenState extends ConsumerState<CouncilScreen> {
                             final selected = _selectedId == art.id && _tab == 0;
                             return InkWell(
                               onTap: _tab == 0 ? () => _selectItem(art) : null,
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                padding: const EdgeInsets.all(11),
-                                decoration: BoxDecoration(
-                                  color: p.surface,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: selected ? p.accent : p.border,
-                                  ),
-                                ),
+                              borderRadius: BorderRadius.circular(8),
+                              child: CodexSectionCard(
+                                padding: const EdgeInsets.all(13),
+                                glowColor: art.anomalyClass.color,
+                                borderColor: selected ? p.accent : p.border,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -346,6 +359,9 @@ class _CouncilScreenState extends ConsumerState<CouncilScreen> {
                         ),
               ),
             ],
+          ),
+              ),
+            ),
           ),
         ),
       ),
