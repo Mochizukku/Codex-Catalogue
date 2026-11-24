@@ -1,14 +1,56 @@
 import 'package:codex_catalouge/core/theme/codex_theme.dart';
 import 'package:codex_catalouge/core/theme/codex_tokens.dart';
+import 'package:codex_catalouge/features/archive/archive_screen.dart';
+import 'package:codex_catalouge/features/auth/auth_screen.dart';
+import 'package:codex_catalouge/features/landing/arcane_backdrop.dart';
+import 'package:codex_catalouge/features/landing/landing_placeholders.dart';
+import 'package:codex_catalouge/features/landing/landing_screen.dart';
 import 'package:codex_catalouge/features/reader/reader_screen.dart';
 import 'package:codex_catalouge/features/sanctum/sanctum_screen.dart';
 import 'package:codex_catalouge/main.dart';
 import 'package:codex_catalouge/models/app_user.dart';
 import 'package:codex_catalouge/models/artifact.dart';
 import 'package:codex_catalouge/providers/codex_providers.dart';
+import 'package:codex_catalouge/services/auth_service.dart';
+import 'package:codex_catalouge/widgets/floating_runes_overlay.dart';
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _FakeAuthService extends Fake implements AuthService {
+  int signUpCalls = 0;
+  int signInCalls = 0;
+  int signOutCalls = 0;
+
+  @override
+  Future<AppUser> signUp({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    signUpCalls++;
+    return AppUser(
+      uid: 'u_new',
+      displayName: displayName,
+      email: email,
+      createdAt: DateTime(2026),
+    );
+  }
+
+  @override
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
+    signInCalls++;
+  }
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+  }
+}
 
 Artifact _sampleArtifact({
   String id = 'art_0417',
@@ -58,10 +100,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('CODEX CATALOGUE'), findsOneWidget);
-    final browseBtn = find.text('Browse Grand Archive (Guest)');
-    await tester.ensureVisible(browseBtn);
+    expect(find.text('UNDER THE DIRECTIVE OF THE PUPPETEER'), findsNothing);
+    expect(find.text('Join the Organization'), findsOneWidget);
+    expect(find.text(kLandingDescriptionPlaceholder), findsOneWidget);
+    expect(
+      find.text(kPlaceholderFeaturedChapters.first.title),
+      findsOneWidget,
+    );
+
+    final browseLink = find.text('Browse the Grand Archive');
+    await tester.ensureVisible(browseLink);
     await tester.pumpAndSettle();
-    await tester.tap(browseBtn);
+    await tester.tap(browseLink);
     await tester.pumpAndSettle();
 
     expect(find.text('Artifact [0417]'), findsOneWidget);
@@ -148,4 +198,262 @@ void main() {
 
     expect(find.text("Open Puppeteer's Council"), findsNothing);
   });
+
+  testWidgets(
+    'Landing CTA morphs to Join the Cult on hover and tap-loading, and slider paginates',
+    (tester) async {
+      var signUpCalls = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: CodexTheme.build(CodexThemeMode.dark),
+          home: LandingScreen(
+            onEnterArchive: () {},
+            onSignUp: () => signUpCalls++,
+            onSignIn: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final ctaFinder = find.text('Join the Organization');
+      expect(ctaFinder, findsOneWidget);
+      expect(find.text('UNCOVER THE ARCHIVE'), findsOneWidget);
+
+      final titleFinder = find.text('CODEX CATALOGUE');
+      final titleRectIdle = tester.getRect(titleFinder);
+
+      // Trigger lava-lamp title animation (~1.8s) and confirm title position never shifts.
+      await tester.pump(const Duration(milliseconds: 1850));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.getRect(titleFinder), titleRectIdle);
+
+      // Description starts hidden below the centered hero viewport.
+      final descOpacityFinder = find.ancestor(
+        of: find.text(kLandingDescriptionPlaceholder),
+        matching: find.byType(AnimatedOpacity),
+      );
+      expect(tester.widget<AnimatedOpacity>(descOpacityFinder).opacity, 0.0);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await tester.pump();
+
+      // Rapid hover enter/exit/enter does not throw duplicate key assertions.
+      await mouse.moveTo(tester.getCenter(ctaFinder));
+      await tester.pump(const Duration(milliseconds: 50));
+      await mouse.moveTo(const Offset(5, 5));
+      await tester.pump(const Duration(milliseconds: 50));
+      await mouse.moveTo(tester.getCenter(find.text('Join the Organization')));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Join the Cult'), findsOneWidget);
+
+      // Exit hover restores "Join the Organization".
+      await mouse.moveTo(const Offset(5, 5));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Join the Organization'), findsOneWidget);
+      await mouse.removePointer();
+
+      // Tap (mobile flow) shows "Join the Cult" loading state, then triggers onSignUp.
+      await tester.tap(find.text('Join the Organization'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Join the Cult'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(signUpCalls, 0);
+
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(signUpCalls, 1);
+
+      // Tapping scroll cue scrolls down and reveals description with floating letters.
+      await tester.tap(find.text('UNCOVER THE ARCHIVE'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<AnimatedOpacity>(descOpacityFinder).opacity, 1.0);
+      expect(find.text(kLandingDescriptionPlaceholder), findsOneWidget);
+
+      // Slider arrow advances to the second placeholder chapter.
+      final nextArrow = find.byIcon(Icons.chevron_right);
+      await tester.ensureVisible(nextArrow);
+      await tester.pumpAndSettle();
+      await tester.tap(nextArrow);
+      await tester.pumpAndSettle();
+      expect(find.text(kPlaceholderFeaturedChapters[1].title), findsOneWidget);
+
+      // Scrolling back to top resets the reveal state so it can replay.
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, 900),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<AnimatedOpacity>(descOpacityFinder).opacity, 0.0);
+    },
+  );
+
+  testWidgets(
+    'FloatingRunesOverlay spawns random runes, responds to press/drag, and preserves child taps',
+    (tester) async {
+      var childTapped = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: CodexTheme.build(CodexThemeMode.dark),
+          home: Scaffold(
+            body: FloatingRunesOverlay(
+              initialDelay: const Duration(milliseconds: 50),
+              burstInterval: const Duration(seconds: 10),
+              burstDuration: const Duration(milliseconds: 600),
+              hitRadius: 1000,
+              child: Center(
+                child: ElevatedButton(
+                  onPressed: () => childTapped++,
+                  child: const Text('Child Button'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Advance past initialDelay so a burst starts.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 120));
+
+      // Drag across the overlay to deflect active runes.
+      await tester.dragFrom(const Offset(100, 200), const Offset(180, -60));
+      await tester.pump(const Duration(milliseconds: 120));
+
+      // Tapping child widget still works through translucent Listener.
+      await tester.tap(find.text('Child Button'));
+      await tester.pumpAndSettle();
+      expect(childTapped, 1);
+    },
+  );
+
+  testWidgets(
+    'AuthScreen Sign Up plays crimson Mark ritual into Sign In, then Sign In awakens into Dashboard',
+    (tester) async {
+      final fakeAuth = _FakeAuthService();
+      var enteredDashboard = 0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firebaseReadyProvider.overrideWith((ref) => false),
+            authServiceProvider.overrideWithValue(fakeAuth),
+          ],
+          child: MaterialApp(
+            theme: CodexTheme.build(CodexThemeMode.dark),
+            home: AuthScreen(
+              initialSignUp: true,
+              onSuccess: () => enteredDashboard++,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(ArcaneBackdrop), findsOneWidget);
+      expect(find.byType(FloatingRunesOverlay), findsOneWidget);
+      expect(find.text('OBTAIN THE MARK'), findsOneWidget);
+
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'Seer_Test');
+      await tester.enterText(fields.at(1), 'seer@codex.org');
+      await tester.enterText(fields.at(2), 'secret123');
+
+      final signUpBtn = find.text('Sign Up & Behold ᛏᚱᚢᛏᚺ');
+      await tester.ensureVisible(signUpBtn);
+      await tester.tap(signUpBtn);
+      await tester.pump();
+      expect(fakeAuth.signUpCalls, 1);
+      expect(fakeAuth.signOutCalls, 1);
+
+      // Let the 3000ms crimson Mark ritual complete and transition to Sign In.
+      await tester.pumpAndSettle();
+      expect(find.text('SANCTUM AUTHENTICATION'), findsOneWidget);
+      expect(enteredDashboard, 0);
+      expect(find.text('seer@codex.org'), findsOneWidget);
+      expect(find.text('secret123'), findsNothing);
+
+      // Enter password and Sign In -> Sanctum Awakening -> Dashboard callback.
+      await tester.enterText(find.byType(TextField).at(1), 'secret123');
+      final signInBtn = find.text('Sign In');
+      await tester.ensureVisible(signInBtn);
+      await tester.tap(signInBtn);
+      await tester.pump();
+      expect(fakeAuth.signInCalls, 1);
+
+      await tester.pumpAndSettle();
+      expect(enteredDashboard, 1);
+    },
+  );
+
+  testWidgets(
+    'Archive search/sort filters artifacts and Sanctum switches all 3 theme modes',
+    (tester) async {
+      final first = _sampleArtifact(
+        id: 'a1',
+        number: 101,
+        title: 'Obelisk of Whispering Sand',
+        origin: 'Ancient Egypt',
+        upvotes: 12,
+      );
+      final second = _sampleArtifact(
+        id: 'a2',
+        number: 204,
+        title: 'Brass Astrolabe of Athens',
+        origin: 'Athens',
+        upvotes: 90,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          firebaseReadyProvider.overrideWith((ref) => false),
+          currentUserProvider.overrideWith((ref) => Stream.value(null)),
+          approvedArtifactsProvider.overrideWith(
+            (ref) => Stream.value([first, second]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: CodexTheme.build(CodexThemeMode.dark),
+            home: const Scaffold(body: ArchiveScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Obelisk of Whispering Sand'), findsOneWidget);
+      expect(find.text('Brass Astrolabe of Athens'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'Astrolabe');
+      await tester.pumpAndSettle();
+      expect(find.text('Brass Astrolabe of Athens'), findsOneWidget);
+      expect(find.text('Obelisk of Whispering Sand'), findsNothing);
+
+      // Verify Sanctum 3-mode theme selector updates globalThemeModeProvider.
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: CodexTheme.build(CodexThemeMode.dark),
+            home: const Scaffold(body: SanctumScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Papyrus'));
+      await tester.pumpAndSettle();
+      expect(container.read(globalThemeModeProvider), CodexThemeMode.papyrus);
+
+      await tester.tap(find.text('Light'));
+      await tester.pumpAndSettle();
+      expect(container.read(globalThemeModeProvider), CodexThemeMode.light);
+    },
+  );
 }
